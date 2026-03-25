@@ -75,7 +75,7 @@ def apply_similarity(
 
 
 def save_similarity_transform(
-    data_path: str, s: float, A: NDArray, b: NDArray
+    data_path: str, s: float, A: "np.ndarray", b: "np.ndarray"
 ) -> None:
     """Save a similarity transform (y = s A x + b) to JSON.
 
