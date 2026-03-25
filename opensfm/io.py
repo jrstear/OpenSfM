@@ -834,16 +834,36 @@ def _read_gcp_list_lines(
     projection,
     exifs: Dict[str, Dict[str, Any]],
 ) -> List[pymap.GroundControlPoint]:
+    lines = list(lines)  # materialize for pre-scan
+
+    # Detect split mode: any observation labelled GCP-* or CHK-* activates
+    # role-based separation (CHK- → METRICS_ONLY, everything else → OPTIMIZATION).
+    # If no such labels are present, behaviour is identical to before.
+    split_mode = False
+    for line in lines:
+        words = line.split(None, 5)
+        if len(words) >= 6:
+            shot_tokens = words[5].split(None)
+            if len(shot_tokens) >= 2 and (
+                shot_tokens[1].startswith("GCP-") or shot_tokens[1].startswith("CHK-")
+            ):
+                split_mode = True
+                break
+
     points = {}
     for line in lines:
-        words = line.split(None, 6)
+        words = line.split(None, 5)
+        if len(words) < 6:
+            continue
         easting, northing, alt, pixel_x, pixel_y = map(float, words[:5])
-        key = (easting, northing, alt)
 
         shot_tokens = words[5].split(None)
         shot_id = shot_tokens[0]
         if shot_id not in exifs:
             continue
+
+        label = shot_tokens[1] if len(shot_tokens) >= 2 else None
+        key = label if (split_mode and label) else (easting, northing, alt)
 
         if key in points:
             point = points[key]
@@ -860,11 +880,14 @@ def _read_gcp_list_lines(
                 lon, lat = easting, northing
 
             point = pymap.GroundControlPoint()
-            if len(words) > 6:
-                point.id = words[6].strip()
+            if split_mode and label:
+                point.id = label
+                if label.startswith("CHK-"):
+                    point.role = pymap.GroundControlPointRole.METRICS_ONLY
+                else:
+                    point.role = pymap.GroundControlPointRole.OPTIMIZATION
             else:
-                point.id = "GCP-%d" % len(points)
-
+                point.id = "unnamed-%d" % len(points)
             point.lla = {"latitude": lat, "longitude": lon, "altitude": alt}
             point.has_altitude = has_altitude
 

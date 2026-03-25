@@ -7,16 +7,20 @@ import PIL
 from fpdf import FPDF
 from opensfm import io
 from opensfm.dataset import DataSet
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 logger: logging.Logger = logging.getLogger(__name__)
 
 
 class Report:
-    def __init__(self, data: DataSet, stats = None) -> None:
-        self.output_path = os.path.join(data.data_path, "stats")
-        self.dataset_name = os.path.basename(data.data_path)
-        self.io_handler = data.io_handler
+    def __init__(
+        self,
+        data: DataSet,
+        stats_override: Optional[Dict[str, Any]] = None,
+    ) -> None:
+        self.output_path: str = os.path.join(data.data_path, "stats")
+        self.dataset_name: str = os.path.basename(data.data_path)
+        self.io_handler: io.IoFilesystemBase = data.io_handler
 
         self.mapi_light_light_green = [255, 255, 255]
         self.mapi_light_green = [0, 0, 0]
@@ -36,10 +40,11 @@ class Report:
         self.cell_height = 7
         self.total_size = 190
 
-        if stats is not None:
-            self.stats = stats
-        else:
-            self.stats = self._read_stats_file("stats.json")
+        self.stats: Dict[str, Any] = (
+            stats_override
+            if stats_override is not None
+            else self._read_stats_file("stats.json")
+        )
 
     def save_report(self, filename: str) -> None:
         # pyre-fixme[28]: Unexpected keyword argument `dest`.
@@ -324,20 +329,27 @@ class Report:
         self.pdf.set_xy(self.margin, self.pdf.get_y() + self.margin / 2)
 
     def make_gps_details(self) -> None:
-        self._make_section("GPS/GCP/3D Errors Details")
+        has_chk = "average_error" in self.stats.get("chk_errors", {})
+        section_title = "GPS/GCP/CHK Errors Details" if has_chk else "GPS/GCP Errors Details"
+        self._make_section(section_title)
 
-        # GPS
+        # GPS / GCP / CHK
+        error_types = ["gps", "gcp"]
+        if has_chk:
+            error_types.append("chk")
         table_count = 0
-        for error_type in ["gps", "gcp", "3d"]:
+        for error_type in error_types:
             rows = []
-            columns_names = [error_type.upper(), "Mean", "Standard Deviation", "RMS Error"]
-            if "average_error" not in self.stats[error_type + "_errors"]:
+            label = "CHK Points" if error_type == "chk" else error_type.upper()
+            columns_names = [label, "Mean", "Sigma", "RMS Error"]
+            errors_key = error_type + "_errors"
+            if "average_error" not in self.stats.get(errors_key, {}):
                 continue
             for comp in ["x", "y", "z"]:
                 row = [comp.upper() + " Error (meters)"]
-                row.append(f"{self.stats[error_type + '_errors']['mean'][comp]:.3f}")
-                row.append(f"{self.stats[error_type +'_errors']['std'][comp]:.3f}")
-                row.append(f"{self.stats[error_type +'_errors']['error'][comp]:.3f}")
+                row.append(f"{self.stats[errors_key]['mean'][comp]:.3f}")
+                row.append(f"{self.stats[errors_key]['std'][comp]:.3f}")
+                row.append(f"{self.stats[errors_key]['error'][comp]:.3f}")
                 rows.append(row)
 
             rows.append(
@@ -345,7 +357,7 @@ class Report:
                     "Total",
                     "",
                     "",
-                    f"{self.stats[error_type +'_errors']['average_error']:.3f}",
+                    f"{self.stats[errors_key]['average_error']:.3f}",
                 ]
             )
             self._make_table(columns_names, rows)
