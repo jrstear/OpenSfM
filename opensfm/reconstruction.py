@@ -28,7 +28,7 @@ from opensfm import (
     types,
     reconstruction_helpers as helpers,
 )
-from opensfm.align import align_reconstruction, apply_similarity
+from opensfm.align import align_reconstruction, apply_similarity, save_similarity_transform
 from opensfm.context import current_memory_usage, parallel_map
 from opensfm.dataset_base import DataSetBase
 
@@ -1576,6 +1576,8 @@ def grow_reconstruction(
     logger.info("-------------------------------------------------------")
 
     align_result = align_reconstruction(reconstruction, gcp, config, bias_override=True)
+    if align_result:
+        save_similarity_transform(data.data_path, *align_result)
     if not align_result and config["bundle_compensate_gps_bias"]:
         overidden_config = config.copy()
         overidden_config["bundle_compensate_gps_bias"] = False
@@ -1643,6 +1645,8 @@ def triangulation_reconstruction(
     report["wall_times"] = dict(chrono.lap_times())
 
     align_result = align_reconstruction(reconstruction, gcp, config, bias_override=True)
+    if align_result:
+        save_similarity_transform(data.data_path, *align_result)
     if not align_result and config["bundle_compensate_gps_bias"]:
         overidden_bias_config = config.copy()
         overidden_bias_config["bundle_compensate_gps_bias"] = False
