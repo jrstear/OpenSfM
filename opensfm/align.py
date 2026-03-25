@@ -1,8 +1,10 @@
 # pyre-strict
 """Tools to align a reconstruction to GPS and GCP data."""
 
+import json
 import logging
 import math
+import os
 from collections import defaultdict
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -72,6 +74,31 @@ def apply_similarity(
     # Scale rig cameras
     for rig_camera in reconstruction.rig_cameras.values():
         apply_similarity_pose(rig_camera.pose, s, np.eye(3), np.array([0, 0, 0]))
+
+
+def save_similarity_transform(
+    data_path: str, s: float, A: NDArray, b: NDArray
+) -> None:
+    """Save a similarity transform (y = s A x + b) to JSON.
+
+    Written to <data_path>/similarity_transform.json.  The transform maps
+    topocentric reconstruction coordinates to aligned topocentric coordinates
+    (i.e. the state after align_reconstruction, before export_geocoords).
+
+    Fields:
+        scale       – uniform scale scalar
+        rotation    – 3×3 rotation matrix as a list of rows
+        translation – 3-element translation vector
+    """
+    out = {
+        "scale": float(s),
+        "rotation": A.tolist(),
+        "translation": b.tolist(),
+    }
+    path = os.path.join(data_path, "similarity_transform.json")
+    with open(path, "w") as f:
+        json.dump(out, f, indent=2)
+    logger.debug("Saved similarity transform to %s", path)
 
 
 def compute_reconstruction_similarity(
