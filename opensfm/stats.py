@@ -80,14 +80,20 @@ def gps_errors(reconstructions: List[types.Reconstruction]) -> Dict[str, Any]:
 def gcp_errors(
     data: DataSetBase, reconstructions: List[types.Reconstruction]
 ) -> Dict[str, Any]:
-    all_errors = []
-
     reference = data.load_reference()
     gcps = data.load_ground_control_points()
     if not gcps:
         return {}
 
-    all_errors = []
+    # Detect split mode: if any point carries METRICS_ONLY role, separate
+    # control (OPTIMIZATION) and check (METRICS_ONLY) errors.  When no
+    # METRICS_ONLY points exist, behaviour is identical to the original.
+    has_chk = any(
+        g.role == pymap.GroundControlPointRole.METRICS_ONLY for g in gcps
+    )
+
+    gcp_errs = []
+    chk_errs = []
     for gcp in gcps:
         if not gcp.lla:
             continue
@@ -95,17 +101,24 @@ def gcp_errors(
         triangulated = None
         for rec in reconstructions:
             triangulated = multiview.triangulate_gcp(gcp, rec.shots, 1.0, 0.1)
-            if triangulated is None:
-                continue
-            else:
+            if triangulated is not None:
                 break
 
         if triangulated is None:
             continue
         gcp_enu = reference.to_topocentric(*gcp.lla_vec)
-        all_errors.append(triangulated - gcp_enu)
+        error = triangulated - gcp_enu
 
-    return _gps_gcp_errors_stats(np.array(all_errors))
+        if has_chk and gcp.role == pymap.GroundControlPointRole.METRICS_ONLY:
+            chk_errs.append(error)
+        else:
+            gcp_errs.append(error)
+
+    result = _gps_gcp_errors_stats(np.array(gcp_errs) if gcp_errs else np.array([]))
+    if has_chk and chk_errs:
+        result = dict(result)
+        result["chk_errors"] = _gps_gcp_errors_stats(np.array(chk_errs))
+    return result
 
 
 def _compute_errors(
@@ -454,7 +467,9 @@ def compute_all_statistics(
     stats["camera_errors"] = cameras_statistics(data, reconstructions)
     stats["rig_errors"] = rig_statistics(data, reconstructions)
     stats["gps_errors"] = gps_errors(reconstructions)
-    stats["gcp_errors"] = gcp_errors(data, reconstructions)
+    gcp_result = gcp_errors(data, reconstructions)
+    stats["chk_errors"] = gcp_result.pop("chk_errors", {})
+    stats["gcp_errors"] = gcp_result
 
     return stats
 

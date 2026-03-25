@@ -14,7 +14,11 @@ logger: logging.Logger = logging.getLogger(__name__)
 
 
 class Report:
-    def __init__(self, data: DataSet) -> None:
+    def __init__(
+        self,
+        data: DataSet,
+        stats_override: Optional[Dict[str, Any]] = None,
+    ) -> None:
         self.output_path: str = os.path.join(data.data_path, "stats")
         self.dataset_name: str = os.path.basename(data.data_path)
         self.io_handler: io.IoFilesystemBase = data.io_handler
@@ -37,7 +41,11 @@ class Report:
         self.cell_height = 7
         self.total_size = 190
 
-        self.stats: Dict[str, Any] = self._read_stats_file("stats.json")
+        self.stats: Dict[str, Any] = (
+            stats_override
+            if stats_override is not None
+            else self._read_stats_file("stats.json")
+        )
 
     def save_report(self, filename: str) -> None:
         bytestring = self.pdf.output()
@@ -266,19 +274,26 @@ class Report:
         self.pdf.set_xy(self.margin, self.pdf.get_y() + 2 * self.margin)
 
     def make_gps_details(self) -> None:
-        self._make_section("GPS/GCP Errors Details")
+        has_chk = "average_error" in self.stats.get("chk_errors", {})
+        section_title = "GPS/GCP/CHK Errors Details" if has_chk else "GPS/GCP Errors Details"
+        self._make_section(section_title)
 
-        # GPS
-        for error_type in ["gps", "gcp"]:
+        # GPS / GCP / CHK
+        error_types = ["gps", "gcp"]
+        if has_chk:
+            error_types.append("chk")
+        for error_type in error_types:
             rows = []
-            columns_names = [error_type.upper(), "Mean", "Sigma", "RMS Error"]
-            if "average_error" not in self.stats[error_type + "_errors"]:
+            label = "CHK Points" if error_type == "chk" else error_type.upper()
+            columns_names = [label, "Mean", "Sigma", "RMS Error"]
+            errors_key = error_type + "_errors"
+            if "average_error" not in self.stats.get(errors_key, {}):
                 continue
             for comp in ["x", "y", "z"]:
                 row = [comp.upper() + " Error (meters)"]
-                row.append(f"{self.stats[error_type + '_errors']['mean'][comp]:.3f}")
-                row.append(f"{self.stats[error_type + '_errors']['std'][comp]:.3f}")
-                row.append(f"{self.stats[error_type + '_errors']['error'][comp]:.3f}")
+                row.append(f"{self.stats[errors_key]['mean'][comp]:.3f}")
+                row.append(f"{self.stats[errors_key]['std'][comp]:.3f}")
+                row.append(f"{self.stats[errors_key]['error'][comp]:.3f}")
                 rows.append(row)
 
             rows.append(
@@ -286,7 +301,7 @@ class Report:
                     "Total",
                     "",
                     "",
-                    f"{self.stats[error_type + '_errors']['average_error']:.3f}",
+                    f"{self.stats[errors_key]['average_error']:.3f}",
                 ]
             )
             self._make_table(columns_names, rows)

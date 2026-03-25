@@ -74,11 +74,16 @@ def bundle(
     config: Dict[str, Any],
 ) -> Dict[str, Any]:
     """Bundle adjust a reconstruction."""
+    # Exclude check-only points from BA — they must not influence the optimization
+    ba_gcp = [
+        p for p in (gcp or [])
+        if p.role != pymap.GroundControlPointRole.METRICS_ONLY
+    ]
     report = pysfm.BAHelpers.bundle(
         reconstruction.map,
         dict(camera_priors),
         dict(rig_camera_priors),
-        gcp if gcp is not None else [],
+        ba_gcp,
         config,
     )
     log_bundle_stats("GLOBAL", report)
@@ -113,11 +118,15 @@ def bundle_local(
     config: Dict[str, Any],
 ) -> Tuple[Dict[str, Any], List[int]]:
     """Bundle adjust the local neighborhood of a shot."""
+    ba_gcp = [
+        p for p in (gcp or [])
+        if p.role != pymap.GroundControlPointRole.METRICS_ONLY
+    ]
     pt_ids, report = pysfm.BAHelpers.bundle_local(
         reconstruction.map,
         dict(camera_priors),
         dict(rig_camera_priors),
-        gcp if gcp is not None else [],
+        ba_gcp,
         central_shot_id,
         config,
     )
