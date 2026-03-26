@@ -229,7 +229,7 @@ def gcp_errors(
     # control (OPTIMIZATION) and check (METRICS_ONLY) errors.  When no
     # METRICS_ONLY points exist, behaviour is identical to the original.
     has_chk = any(
-        g.role == pymap.GroundControlPointRole.METRICS_ONLY for g in gcps
+        (hasattr(g, 'role') and hasattr(pymap, 'GroundControlPointRole') and g.role == pymap.GroundControlPointRole.METRICS_ONLY) for g in gcps
     )
 
     gcp_errs = []
@@ -280,7 +280,7 @@ def gcp_errors(
             'error': list(error)
         })
 
-        if has_chk and gcp.role == pymap.GroundControlPointRole.METRICS_ONLY:
+        if has_chk and hasattr(gcp, 'role') and hasattr(pymap, 'GroundControlPointRole') and gcp.role == pymap.GroundControlPointRole.METRICS_ONLY:
             chk_errs.append(error)
         else:
             gcp_errs.append(error)

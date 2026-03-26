@@ -62,7 +62,7 @@ def bundle(
     # Exclude check-only points from BA — they must not influence the optimization
     ba_gcp = [
         p for p in (gcp or [])
-        if p.role != pymap.GroundControlPointRole.METRICS_ONLY
+        if not hasattr(p, 'role') or not hasattr(pymap, 'GroundControlPointRole') or p.role != pymap.GroundControlPointRole.METRICS_ONLY
     ]
     report = pysfm.BAHelpers.bundle(
         reconstruction.map,
@@ -105,7 +105,7 @@ def bundle_local(
     """Bundle adjust the local neighborhood of a shot."""
     ba_gcp = [
         p for p in (gcp or [])
-        if p.role != pymap.GroundControlPointRole.METRICS_ONLY
+        if not hasattr(p, 'role') or not hasattr(pymap, 'GroundControlPointRole') or p.role != pymap.GroundControlPointRole.METRICS_ONLY
     ]
     pt_ids, report = pysfm.BAHelpers.bundle_local(
         reconstruction.map,

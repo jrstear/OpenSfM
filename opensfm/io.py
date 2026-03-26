@@ -882,10 +882,11 @@ def _read_gcp_list_lines(
             point = pymap.GroundControlPoint()
             if split_mode and label:
                 point.id = label
-                if label.startswith("CHK-"):
-                    point.role = pymap.GroundControlPointRole.METRICS_ONLY
-                else:
-                    point.role = pymap.GroundControlPointRole.OPTIMIZATION
+                if hasattr(pymap, 'GroundControlPointRole'):
+                    if label.startswith("CHK-"):
+                        point.role = pymap.GroundControlPointRole.METRICS_ONLY
+                    else:
+                        point.role = pymap.GroundControlPointRole.OPTIMIZATION
             else:
                 point.id = "unnamed-%d" % len(points)
             point.lla = {"latitude": lat, "longitude": lon, "altitude": alt}
